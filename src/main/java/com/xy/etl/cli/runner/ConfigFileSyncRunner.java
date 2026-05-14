@@ -42,16 +42,24 @@ public class ConfigFileSyncRunner implements ApplicationRunner {
 
         log.info("检测到配置文件方式启动，配置文件数: {}, paths: {}", configPaths.size(), configPaths);
         try {
-            log.info("加载配置文件: {}", configPaths);
-            DbSyncRequest request = requestFactory.create(configPaths);
-            resultLogger.logLoadedConfig(configPaths.size(), request.getTableConfigs().size());
-            log.info("开始执行同步，表数: {}", request.getTableConfigs().size());
+            for (int i = 0; i < configPaths.size(); i++) {
+                String configPath = configPaths.get(i);
+                log.info("加载配置文件[{}/{}]: {}", i + 1, configPaths.size(), configPath);
 
-            long startTime = System.currentTimeMillis();
-            DbSyncResponse response = syncService.run(request);
-            long elapsedMillis = System.currentTimeMillis() - startTime;
-            resultLogger.logExecutionResult(response, elapsedMillis);
+                DbSyncRequest request = requestFactory.create(configPath);
+                resultLogger.logLoadedConfig(1, request.getTableConfigs().size());
+                log.info("开始执行配置文件[{}/{}]同步，表数: {}", i + 1, configPaths.size(), request.getTableConfigs().size());
 
+                long startTime = System.currentTimeMillis();
+                DbSyncResponse response = syncService.run(request);
+                long elapsedMillis = System.currentTimeMillis() - startTime;
+                resultLogger.logExecutionResult(response, elapsedMillis);
+                if (response == null || !response.isSuccess()) {
+                    throw new ConfigFileSyncException("配置文件执行失败: " + configPath, null);
+                }
+            }
+        } catch (ConfigFileSyncException e) {
+            throw e;
         } catch (Exception e) {
             throw new ConfigFileSyncException("配置文件同步执行失败: " + e.getMessage(), e);
         }

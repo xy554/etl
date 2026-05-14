@@ -1,17 +1,24 @@
 package com.xy.etl.cli.config;
 
 import com.xy.etl.cli.model.SyncConfig;
-import com.xy.etl.dto.*;
+import com.xy.etl.dto.DbSyncColumnMappingDTO;
+import com.xy.etl.dto.DbSyncDeleteRuleDTO;
+import com.xy.etl.dto.DbSyncFilterDTO;
+import com.xy.etl.dto.DbSyncRequest;
+import com.xy.etl.dto.DbSyncTableConfigDTO;
+import com.xy.etl.dto.DirectDataSourceConfigDTO;
 import com.xy.etl.sync.support.DbSyncConstants;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
-import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySource;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.springframework.core.io.FileSystemResource;
 
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
 
 public class YamlConfigLoader {
 
@@ -34,105 +41,6 @@ public class YamlConfigLoader {
 
         return binder.bind("", Bindable.of(SyncConfig.class))
                 .orElseThrow(() -> new RuntimeException("配置文件解析失败: " + configPath));
-    }
-
-    /**
-     * 加载并合并多个配置文件
-     * 后面的配置会覆盖/追加到前面的配置
-     */
-    public static SyncConfig loadMultiple(List<String> configPaths) {
-        if (configPaths == null || configPaths.isEmpty()) {
-            throw new RuntimeException("配置文件列表为空");
-        }
-        if (configPaths.size() == 1) {
-            return load(configPaths.get(0));
-        }
-
-        SyncConfig merged = null;
-        for (String path : configPaths) {
-            SyncConfig config = load(path);
-            if (merged == null) {
-                merged = config;
-            } else {
-                merged = merge(merged, config);
-            }
-        }
-        return merged;
-    }
-
-    /**
-     * 合并两个配置，b 的配置会覆盖/追加到 a
-     */
-    private static SyncConfig merge(SyncConfig a, SyncConfig b) {
-        SyncConfig result = new SyncConfig();
-
-        // source: b 覆盖 a
-        result.setSource(b.getSource() != null ? b.getSource() : a.getSource());
-        // target: b 覆盖 a
-        result.setTarget(b.getTarget() != null ? b.getTarget() : a.getTarget());
-
-        // options: 字段级别合并，b 的非空值优先
-        SyncConfig.SyncOptions mergedOpts = new SyncConfig.SyncOptions();
-        SyncConfig.SyncOptions optsA = a.getOptions();
-        SyncConfig.SyncOptions optsB = b.getOptions();
-        mergedOpts.setBatchSize(optsB != null && optsB.getBatchSize() != null ? optsB.getBatchSize()
-                : optsA != null ? optsA.getBatchSize() : null);
-        mergedOpts.setContinueOnError(optsB != null && optsB.getContinueOnError() != null ? optsB.getContinueOnError()
-                : optsA != null ? optsA.getContinueOnError() : null);
-        mergedOpts.setTruncateBeforeLoad(optsB != null && optsB.getTruncateBeforeLoad() != null ? optsB.getTruncateBeforeLoad()
-                : optsA != null ? optsA.getTruncateBeforeLoad() : null);
-        mergedOpts.setCheckpointTable(optsB != null && optsB.getCheckpointTable() != null ? optsB.getCheckpointTable()
-                : optsA != null ? optsA.getCheckpointTable() : null);
-        mergedOpts.setAutoCreateCheckpointTable(optsB != null && optsB.getAutoCreateCheckpointTable() != null ? optsB.getAutoCreateCheckpointTable()
-                : optsA != null ? optsA.getAutoCreateCheckpointTable() : null);
-        result.setOptions(mergedOpts);
-
-        // tables: 按出现顺序合并，同名 table 用后面的配置覆盖
-        result.setTables(mergeTables(a.getTables(), b.getTables()));
-
-        return result;
-    }
-
-    private static List<SyncConfig.TableConfig> mergeTables(List<SyncConfig.TableConfig> aTables,
-                                                            List<SyncConfig.TableConfig> bTables) {
-        List<SyncConfig.TableConfig> mergedTables = new ArrayList<>();
-        Map<String, Integer> keyedIndexes = new LinkedHashMap<>();
-        mergeTableList(mergedTables, keyedIndexes, aTables);
-        mergeTableList(mergedTables, keyedIndexes, bTables);
-        return mergedTables;
-    }
-
-    private static void mergeTableList(List<SyncConfig.TableConfig> mergedTables,
-                                       Map<String, Integer> keyedIndexes,
-                                       List<SyncConfig.TableConfig> tables) {
-        if (tables == null) {
-            return;
-        }
-        for (SyncConfig.TableConfig table : tables) {
-            String key = resolveTableMergeKey(table);
-            if (key == null) {
-                mergedTables.add(table);
-                continue;
-            }
-            Integer existingIndex = keyedIndexes.get(key);
-            if (existingIndex == null) {
-                keyedIndexes.put(key, mergedTables.size());
-                mergedTables.add(table);
-            } else {
-                mergedTables.set(existingIndex, table);
-            }
-        }
-    }
-
-    private static String resolveTableMergeKey(SyncConfig.TableConfig table) {
-        if (table == null) {
-            return null;
-        }
-        String key = table.getSyncKey() != null ? table.getSyncKey() : table.getName();
-        if (key == null || key.isBlank()) {
-            return null;
-        }
-        return key.trim();
     }
 
     public static DbSyncRequest toRequest(SyncConfig config) {
@@ -211,13 +119,11 @@ public class YamlConfigLoader {
     private static DbSyncTableConfigDTO buildTableConfig(SyncConfig.TableConfig table, SyncConfig.SyncOptions opts) {
         String sourceSql = firstNonBlank(table.getSql(), table.getSourceSql());
 
-        // 推断 sourceMode
         String sourceMode = table.getSourceMode();
         if (sourceMode == null) {
             sourceMode = sourceSql != null ? DbSyncConstants.SOURCE_MODE_SQL : DbSyncConstants.SOURCE_MODE_TABLE;
         }
 
-        // 推断 writeMode
         String writeMode = table.getWriteMode();
         boolean hasColumns = table.getColumns() != null && !table.getColumns().isEmpty();
         Boolean truncateBeforeLoad = table.getTruncateBeforeLoad();
@@ -230,9 +136,10 @@ public class YamlConfigLoader {
                     : DbSyncConstants.WRITE_MODE_UPSERT;
         }
 
-        String fullRefreshDeleteMode = Boolean.TRUE.equals(truncateBeforeLoad) ? DbSyncConstants.FULL_REFRESH_DELETE_MODE_TRUNCATE : null;
+        String fullRefreshDeleteMode = Boolean.TRUE.equals(truncateBeforeLoad)
+                ? DbSyncConstants.FULL_REFRESH_DELETE_MODE_TRUNCATE
+                : null;
 
-        // 构建 columnMappings
         List<DbSyncColumnMappingDTO> columnMappings = new ArrayList<>();
         if (table.getColumns() != null) {
             for (String col : table.getColumns()) {
@@ -254,7 +161,6 @@ public class YamlConfigLoader {
             }
         }
 
-        // 构建 filters
         List<DbSyncFilterDTO> filters = new ArrayList<>();
         if (table.getFilters() != null) {
             for (SyncConfig.FilterConfig f : table.getFilters()) {
@@ -265,7 +171,6 @@ public class YamlConfigLoader {
             }
         }
 
-        // 构建 deleteRule
         DbSyncDeleteRuleDTO deleteRule = null;
         if (table.getDeleteRule() != null) {
             SyncConfig.DeleteRuleConfig dr = table.getDeleteRule();
@@ -277,7 +182,6 @@ public class YamlConfigLoader {
                     .build();
         }
 
-        // syncKey: 优先用 syncKey，其次用 name
         String syncKey = table.getSyncKey();
         if (syncKey == null || syncKey.isBlank()) {
             syncKey = table.getName();
