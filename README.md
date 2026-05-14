@@ -1,213 +1,319 @@
-# ETL - MySQL 数据库同步服务
+# SIMPLE-ETL
 
-基于 Spring Boot 的 MySQL → MySQL 数据同步工具，通过 REST API 提交同步任务，支持增量同步和全量覆盖。
+基于 Spring Boot 的 `MySQL -> MySQL` 数据同步服务，支持通过 Web API 触发，也支持通过 YAML 配置文件直接以 CLI 模式运行。
 
-## 技术栈
+HTTP API 调用说明见：[HTTP_API.md](D:/xyproject/etl/docs/HTTP_API.md:1)
 
-- Java 21 + Spring Boot 3.2.5
-- MySQL Connector/J 8.0.33
-- HikariCP 连接池
-- Lombok
+## 功能概览
 
-## 功能特性
+- 支持 `sourceMode=table` 和 `sourceMode=sql`
+- 支持 4 种 `write_mode`
+  - `upsert`
+  - `delete_insert`
+  - `multi_values_upsert`
+  - `full_refresh_insert`
+- 支持断点续传
+- 支持多表同步
+- 支持列映射、常量值、过滤条件、删除标记
+- 支持通过配置文件直接运行同步任务
 
-- **多表同步**：一次请求可同步多张表
-- **增量同步**：基于时间戳 + 自增 ID 的游标分页，支持断点续传
-- **全量覆盖**：先清空目标表再全量写入，支持 TRUNCATE 或 DELETE 两种清空模式
-- **多种写入模式**：
-  - `upsert` — INSERT ON DUPLICATE KEY UPDATE
-  - `delete_insert` — 先删后插
-  - `multi_values_upsert` — 多值 UPSERT（高性能）
-  - `full_refresh_insert` — 全量覆盖插入
-- **列映射**：支持源列与目标列的自定义映射、常量值注入
-- **数据过滤**：支持按列值过滤源数据
-- **删除标记**：支持通过操作类型列或删除标记列识别已删除数据
-- **断点管理**：自动维护同步检查点，支持查询和重置
-- **高性能批量写入**：多值 INSERT SQL，不依赖 JDBC 参数即可实现批量写入优化
+## 运行方式
 
-## 快速开始
+### 1. Web 模式
 
-### 构建
-
-```bash
-./mvnw clean package -DskipTests
-```
-
-### 运行
+直接启动应用：
 
 ```bash
 java -jar target/etl-0.0.1-SNAPSHOT.war
 ```
 
-默认端口 `8080`，可在 `application.yaml` 中修改。
+或者在 IDEA 中直接运行 `com.xy.etl.EtlApplication`。
 
-## API 接口
+### 2. CLI 模式
 
-### 1. 执行同步
+当前 CLI 模式只支持 `-Dconfig=...`，不支持 `-c`。
 
-```
-POST /api/db-sync/run
-```
+单个配置文件：
 
-请求体示例：
-
-```json
-{
-  "sourceDataSourceConfig": {
-    "sourceName": "source-db",
-    "jdbcUrl": "jdbc:mysql://source-host:3306/source_db?useSSL=false&characterEncoding=utf8mb4",
-    "jdbcUsername": "root",
-    "jdbcPassword": "password"
-  },
-  "targetDataSourceConfig": {
-    "sourceName": "target-db",
-    "jdbcUrl": "jdbc:mysql://target-host:3306/target_db?useSSL=false&characterEncoding=utf8mb4",
-    "jdbcUsername": "root",
-    "jdbcPassword": "password"
-  },
-  "batchSize": 2000,
-  "continueOnError": false,
-  "tableConfigs": [
-    {
-      "syncKey": "student-sync",
-      "sourceMode": "table",
-      "writeMode": "upsert",
-      "sourceTable": "tbl_student",
-      "targetTable": "IN_STUDENT",
-      "cursorIdColumn": "id",
-      "syncTimeColumn": "update_time",
-      "targetKeyColumn": "student_code",
-      "columnMappings": [
-        { "sourceColumn": "student_code", "targetColumn": "student_code" },
-        { "sourceColumn": "student_name", "targetColumn": "student_name" }
-      ]
-    },
-    {
-      "syncKey": "teacher-full-refresh",
-      "sourceMode": "sql",
-      "writeMode": "full_refresh_insert",
-      "fullRefreshDeleteMode": "truncate",
-      "sourceSql": "SELECT teacher_code, teacher_name FROM tbl_teacher WHERE status = 1",
-      "targetTable": "IN_TEACHER",
-      "cursorIdColumn": "id",
-      "syncTimeColumn": "create_time",
-      "columnMappings": [
-        { "sourceColumn": "teacher_code", "targetColumn": "teacher_code" },
-        { "sourceColumn": "teacher_name", "targetColumn": "teacher_name" }
-      ]
-    }
-  ]
-}
+```bash
+java -Dconfig=D:\xyproject\etl\src\main\resources\selfconfig\your-config.yaml -jar target/etl-0.0.1-SNAPSHOT.war
 ```
 
-### 2. 查询断点
+多个配置文件：
 
-```
-POST /api/db-sync/checkpoints/query
-```
-
-请求体示例：
-
-```json
-{
-  "targetDataSourceConfig": {
-    "jdbcUrl": "jdbc:mysql://target-host:3306/target_db?useSSL=false&characterEncoding=utf8mb4",
-    "jdbcUsername": "root",
-    "jdbcPassword": "password"
-  },
-  "syncKey": "student-sync"
-}
+```bash
+java -Dconfig=config1.yaml,config2.yaml -jar target/etl-0.0.1-SNAPSHOT.war
 ```
 
-### 3. 重置断点
+多个配置文件不会合并，而是按书写顺序依次执行：
 
+1. 先执行 `config1.yaml`
+2. 再执行 `config2.yaml`
+3. 如果前一个配置执行失败，后一个不会继续执行
+
+CLI 模式下：
+
+- 应用不会启动 Web 容器
+- 同步执行完成后进程会自动退出
+- 失败时会返回非 `0` 退出码
+
+### 3. IDEA 启动 CLI 模式
+
+在 IDEA 的运行配置里：
+
+- `Main class` 选择 `com.xy.etl.EtlApplication`
+- `VM options` 填：
+
+```text
+-Dconfig=$PROJECT_DIR$\src\main\resources\selfconfig\your-config.yaml
 ```
-POST /api/db-sync/checkpoints/reset
+
+如果要顺序执行多个配置文件，也写在 `VM options` 里：
+
+```text
+-Dconfig=$PROJECT_DIR$\src\main\resources\selfconfig\config1.yaml,$PROJECT_DIR$\src\main\resources\selfconfig\config2.yaml
 ```
 
-请求体示例：
+- `Program arguments` 留空
 
-```json
-{
-  "targetDataSourceConfig": {
-    "jdbcUrl": "jdbc:mysql://target-host:3306/target_db?useSSL=false&characterEncoding=utf8mb4",
-    "jdbcUsername": "root",
-    "jdbcPassword": "password"
-  },
-  "syncKeys": ["student-sync", "teacher-full-refresh"]
-}
+注意：`-Dconfig=...` 必须放在 `VM options`，不能放在 `Program arguments`。
+
+## 配置文件位置
+
+仓库中公开保留的是示例配置，位于 `src/main/resources/examples/`：
+
+- [source-table-upsert.example.yaml](D:/xyproject/etl/src/main/resources/examples/source-table-upsert.example.yaml:1)
+- [source-table-delete-insert.example.yaml](D:/xyproject/etl/src/main/resources/examples/source-table-delete-insert.example.yaml:1)
+- [source-table-multi-values-upsert.example.yaml](D:/xyproject/etl/src/main/resources/examples/source-table-multi-values-upsert.example.yaml:1)
+- [source-table-full-refresh-insert.example.yaml](D:/xyproject/etl/src/main/resources/examples/source-table-full-refresh-insert.example.yaml:1)
+- [source-sql-upsert.example.yaml](D:/xyproject/etl/src/main/resources/examples/source-sql-upsert.example.yaml:1)
+- [source-sql-delete-insert.example.yaml](D:/xyproject/etl/src/main/resources/examples/source-sql-delete-insert.example.yaml:1)
+- [source-sql-multi-values-upsert.example.yaml](D:/xyproject/etl/src/main/resources/examples/source-sql-multi-values-upsert.example.yaml:1)
+- [source-sql-full-refresh-insert.example.yaml](D:/xyproject/etl/src/main/resources/examples/source-sql-full-refresh-insert.example.yaml:1)
+
+学校私有配置请放在 `src/main/resources/selfconfig/` 或你自己的私有目录中，不纳入仓库。
+
+## 配置文件结构
+
+配置文件主要包含 4 段：
+
+```yaml
+source:
+target:
+options:
+tables:
 ```
 
-## 核心配置说明
+### source / target
 
-### 数据源配置（DirectDataSourceConfigDTO）
+可以写 `host + port + username + password + database`，也可以直接写 `jdbcUrl`。
+
+示例：
+
+```yaml
+source:
+  host: "127.0.0.1"
+  port: 3306
+  username: "root"
+  password: "your_password"
+  database: "source_db"
+  charset: "utf8mb4"
+```
+
+说明：
+
+- `charset: utf8mb4` 现在是支持的
+- 代码会自动把 JDBC `characterEncoding` 规范化为驱动可识别的值
+
+### options
+
+常见字段：
+
+```yaml
+options:
+  batch_size: 1000
+  truncate_before_load: true
+  continue_on_error: false
+  checkpoint_table: "edu_db_sync_checkpoint"
+  auto_create_checkpoint_table: true
+```
+
+### tables
+
+每个表配置支持这些关键字段：
 
 | 字段 | 说明 |
 |---|---|
-| `sourceName` | 数据源名称（用于日志标识） |
-| `jdbcUrl` | JDBC 连接地址 |
-| `jdbcDriver` | 驱动类名（默认 `com.mysql.cj.jdbc.Driver`） |
-| `jdbcUsername` | 用户名 |
-| `jdbcPassword` | 密码 |
-| `connectionPoolSize` | 连接池大小（默认 10） |
+| `name` | 表配置名称 |
+| `sync_key` | 同步任务标识，可选 |
+| `source_mode` | `table` 或 `sql` |
+| `write_mode` | `upsert` / `delete_insert` / `multi_values_upsert` / `full_refresh_insert` |
+| `source_table` | 表模式下的源表 |
+| `source_sql` | SQL 模式下的查询 SQL |
+| `target_table` | 目标表 |
+| `cursor_id_column` | 游标列 |
+| `sync_time_column` | 同步时间列 |
+| `fallback_sync_time_column` | 备选时间列，可选 |
+| `sync_time_expression` | 时间表达式，可选 |
+| `target_key_column` | 单主键模式使用 |
+| `target_key_columns` | 复合主键模式使用 |
+| `column_mappings` | 列映射 |
+| `filters` | 过滤条件 |
+| `delete_rule` | 删除标记规则 |
 
-### 表同步配置（DbSyncTableConfigDTO）
+## 模式约束
 
-| 字段 | 说明 | 可选值 |
-|---|---|---|
-| `syncKey` | 同步任务唯一标识 | — |
-| `sourceMode` | 数据源模式 | `table`（按表名）/ `sql`（自定义 SQL） |
-| `writeMode` | 写入模式 | `upsert` / `delete_insert` / `multi_values_upsert` / `full_refresh_insert` |
-| `fullRefreshDeleteMode` | 全量清空方式 | `truncate` / `delete` |
-| `sourceTable` | 源表名（sourceMode=table 时） | — |
-| `sourceSql` | 源查询 SQL（sourceMode=sql 时） | — |
-| `targetTable` | 目标表名 | — |
-| `cursorIdColumn` | 游标 ID 列（用于增量分页） | — |
-| `syncTimeColumn` | 同步时间列 | — |
-| `syncTimeExpression` | 同步时间表达式（覆盖 syncTimeColumn） | 如 `COALESCE(update_time, create_time)` |
-| `targetKeyColumn` | 目标表主键列（单列） | — |
-| `targetKeyColumns` | 目标表主键列（多列复合主键） | — |
-| `batchSize` | 批次大小（默认 2000） | — |
-| `columnMappings` | 列映射列表 | — |
-| `filters` | 数据过滤条件 | — |
-| `deleteRule` | 删除标记规则 | — |
+### sourceMode=table
 
-### 列映射（DbSyncColumnMappingDTO）
+- 使用 `source_table`
+- 支持 `filters`
+- 不需要自己写 SQL
 
-| 字段 | 说明 |
-|---|---|
-| `sourceColumn` | 源列名 |
-| `targetColumn` | 目标列名 |
-| `required` | 是否必填（为空时跳过该行） |
-| `maxLength` | 最大长度（超长截断） |
-| `constantValue` | 常量值（不读源列，直接写入固定值） |
+### sourceMode=sql
 
-### 删除标记规则（DbSyncDeleteRuleDTO）
+- 使用 `source_sql`
+- 不支持 `filters`
+- `source_sql` 的结果里必须真实包含：
+  - `cursor_id_column`
+  - `sync_time_column`
+  - 如果配置了 `fallback_sync_time_column`，也要能取到
 
-| 字段 | 说明 |
-|---|---|
-| `operationTypeColumn` | 操作类型列名 |
-| `deleteOperationValue` | 删除操作对应的值 |
-| `deleteFlagColumn` | 删除标记列名 |
-| `deleteFlagValue` | 删除标记值 |
+也就是说，下面这种配置只写 YAML 还不够：
 
-## 项目结构
-
+```yaml
+cursor_id_column: "id"
+sync_time_column: "update_time"
 ```
+
+你还必须确保 `source_sql` 真实查询出了 `id` 和 `update_time`。
+
+### write_mode=upsert
+
+- 要求 `target_key_column`
+- `target_key_column` 必须出现在 `column_mappings.target_column` 里
+
+### write_mode=multi_values_upsert
+
+- 约束和 `upsert` 一样
+- 区别主要在批量写入 SQL 的拼接方式
+
+### write_mode=delete_insert
+
+- 必须使用 `target_key_columns`
+- 不能只写 `target_key_column`
+- `target_key_columns` 中每个字段都必须出现在 `column_mappings.target_column` 里
+
+### write_mode=full_refresh_insert
+
+- 会走全量刷新路径
+- 依然要求：
+  - `cursor_id_column`
+  - `sync_time_column`
+- 如果想在写入前清空目标表，可以配置：
+
+```yaml
+truncate_before_load: true
+```
+
+## 列映射说明
+
+示例：
+
+```yaml
+column_mappings:
+  - source_column: "student_code"
+    target_column: "student_code"
+    required: true
+    max_length: 100
+  - target_column: "is_active"
+    constant_value: 1
+```
+
+规则：
+
+- `source_column` 和 `constant_value` 二选一
+- 不能同时写
+- `required: true` 会做非空校验
+- `max_length` 会做长度校验
+
+## 常见问题
+
+### 1. `Unsupported character encoding 'utf8mb4'`
+
+这个问题已经在代码里做了兼容处理。
+
+如果你配置的是：
+
+```yaml
+charset: utf8mb4
+```
+
+不需要再手动改成别的值。
+
+### 2. `cursor id is null`
+
+通常原因是：
+
+- 配置了 `cursor_id_column`
+- 但 `source_sql` 没有实际查询出这个字段
+
+需要检查 `source_sql` 的 `SELECT` 列表。
+
+### 3. `Unknown column ...`
+
+通常是以下几种情况：
+
+- `source_sql` 没有输出 `cursor_id_column`
+- `source_sql` 没有输出 `sync_time_column`
+- `source_sql` 没有输出 `fallback_sync_time_column`
+- `column_mappings.source_column` 写的列在结果里不存在
+
+### 4. `columnMappings must include target key column`
+
+说明：
+
+- 你配置了 `target_key_column` 或 `target_key_columns`
+- 但这些目标键字段没有出现在 `column_mappings.target_column` 里
+
+## 代码结构
+
+当前主要结构：
+
+```text
 src/main/java/com/xy/etl/
-├── controller/          # REST 接口
-├── dto/                 # 请求/响应数据传输对象
-├── manager/             # 数据源连接池管理
-├── service/             # 同步服务入口
-│   └── impl/
-├── sync/                # 同步核心逻辑
-│   ├── checkpoint/      # 断点存储与恢复
-│   ├── config/          # 配置解析
-│   ├── datasource/      # 数据源解析
-│   ├── executor/        # 表同步执行器
-│   ├── model/           # 内部模型
-│   ├── reader/          # 源数据批量读取
-│   ├── support/         # 常量与工具
-│   └── writer/          # 目标数据写入
-│       └── strategy/    # 写入策略（upsert/delete_insert/...）
+├── controller
+├── dto
+├── service
+│   └── impl
+├── sync
+│   ├── checkpoint
+│   ├── config
+│   ├── datasource
+│   ├── executor
+│   ├── model
+│   ├── reader
+│   ├── support
+│   └── writer
+│       └── strategy
+└── cli
+    ├── config
+    ├── exception
+    ├── logging
+    ├── model
+    ├── runner
+    └── support
+```
+
+## 构建
+
+Maven：
+
+```bash
+mvn clean package -DskipTests
+```
+
+打包后默认产物：
+
+```text
+target/etl-0.0.1-SNAPSHOT.war
 ```

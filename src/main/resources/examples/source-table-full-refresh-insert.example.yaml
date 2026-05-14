@@ -1,0 +1,51 @@
+# Example: source_mode=table, write_mode=full_refresh_insert
+# Start with:
+#   java -Dconfig=src/main/resources/examples/source-table-full-refresh-insert.example.yaml -jar etl.jar
+#
+# Notes:
+# - full_refresh_insert still requires cursor_id_column and sync_time_column.
+# - Set truncate_before_load=true if you want TRUNCATE before insert.
+# - target key is optional in this mode.
+
+source:
+  host: "127.0.0.1"
+  port: 3306
+  username: "root"
+  password: "your_password"
+  database: "source_db"
+  charset: "utf8mb4"
+
+target:
+  host: "127.0.0.1"
+  port: 3306
+  username: "root"
+  password: "your_password"
+  database: "target_db"
+  charset: "utf8mb4"
+
+options:
+  batch_size: 1000
+  truncate_before_load: true
+  continue_on_error: false
+  checkpoint_table: "edu_db_sync_checkpoint"
+  auto_create_checkpoint_table: true
+
+tables:
+  - name: "organization_full_refresh_demo"
+    source_mode: "table"
+    write_mode: "full_refresh_insert"
+    source_table: "source_organization"
+    target_table: "target_organization"
+    cursor_id_column: "id"
+    sync_time_column: "update_time"
+    fallback_sync_time_column: "create_time"
+    truncate_before_load: true
+    column_mappings:
+      - source_column: "org_code"
+        target_column: "org_code"
+        required: true
+      - source_column: "org_name"
+        target_column: "org_name"
+        required: true
+      - source_column: "org_type"
+        target_column: "org_type"

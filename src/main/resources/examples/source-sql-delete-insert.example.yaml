@@ -1,0 +1,64 @@
+# Example: source_mode=sql, write_mode=delete_insert
+# Start with:
+#   java -Dconfig=src/main/resources/examples/source-sql-delete-insert.example.yaml -jar etl.jar
+#
+# Notes:
+# - SQL mode does not support filters.
+# - delete_insert requires target_key_columns.
+# - source_sql must actually output cursor_id_column and sync_time_column.
+
+source:
+  host: "127.0.0.1"
+  port: 3306
+  username: "root"
+  password: "your_password"
+  database: "source_db"
+  charset: "utf8mb4"
+
+target:
+  host: "127.0.0.1"
+  port: 3306
+  username: "root"
+  password: "your_password"
+  database: "target_db"
+  charset: "utf8mb4"
+
+options:
+  batch_size: 1000
+  continue_on_error: false
+  checkpoint_table: "edu_db_sync_checkpoint"
+  auto_create_checkpoint_table: true
+
+tables:
+  - name: "student_course_sql_delete_insert_demo"
+    source_mode: "sql"
+    write_mode: "delete_insert"
+    source_sql: |
+      SELECT
+        sc.id,
+        sc.update_time,
+        sc.create_time,
+        sc.student_code,
+        sc.course_code,
+        sc.term_code,
+        sc.score
+      FROM source_student_course_view sc
+      WHERE sc.term_code = '2025A'
+    target_table: "target_student_course"
+    cursor_id_column: "id"
+    sync_time_column: "update_time"
+    fallback_sync_time_column: "create_time"
+    target_key_columns:
+      - "student_code"
+      - "course_code"
+    column_mappings:
+      - source_column: "student_code"
+        target_column: "student_code"
+        required: true
+      - source_column: "course_code"
+        target_column: "course_code"
+        required: true
+      - source_column: "term_code"
+        target_column: "term_code"
+      - source_column: "score"
+        target_column: "score"

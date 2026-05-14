@@ -1,0 +1,63 @@
+# Example: source_mode=sql, write_mode=multi_values_upsert
+# Start with:
+#   java -Dconfig=src/main/resources/examples/source-sql-multi-values-upsert.example.yaml -jar etl.jar
+#
+# Notes:
+# - SQL mode does not support filters.
+# - multi_values_upsert requires target_key_column.
+# - source_sql must actually output cursor_id_column and sync_time_column.
+
+source:
+  host: "127.0.0.1"
+  port: 3306
+  username: "root"
+  password: "your_password"
+  database: "source_db"
+  charset: "utf8mb4"
+
+target:
+  host: "127.0.0.1"
+  port: 3306
+  username: "root"
+  password: "your_password"
+  database: "target_db"
+  charset: "utf8mb4"
+
+options:
+  batch_size: 2000
+  continue_on_error: false
+  checkpoint_table: "edu_db_sync_checkpoint"
+  auto_create_checkpoint_table: true
+
+tables:
+  - name: "inventory_sql_multi_values_upsert_demo"
+    source_mode: "sql"
+    write_mode: "multi_values_upsert"
+    source_sql: |
+      SELECT
+        i.id,
+        i.update_time,
+        i.create_time,
+        i.sku_code,
+        i.warehouse_code,
+        i.stock_qty,
+        i.locked_qty
+      FROM source_inventory_view i
+      WHERE i.enabled = 1
+    target_table: "target_inventory"
+    cursor_id_column: "id"
+    sync_time_column: "update_time"
+    fallback_sync_time_column: "create_time"
+    target_key_column: "sku_code"
+    column_mappings:
+      - source_column: "sku_code"
+        target_column: "sku_code"
+        required: true
+      - source_column: "warehouse_code"
+        target_column: "warehouse_code"
+      - source_column: "stock_qty"
+        target_column: "stock_qty"
+      - source_column: "locked_qty"
+        target_column: "locked_qty"
+      - source_column: "update_time"
+        target_column: "update_time"

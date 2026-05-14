@@ -1,0 +1,62 @@
+# Example: source_mode=table, write_mode=upsert
+# Start with:
+#   java -Dconfig=src/main/resources/examples/source-table-upsert.example.yaml -jar etl.jar
+#
+# Notes:
+# - Table mode supports filters.
+# - Upsert mode requires target_key_column.
+# - target_key_column must exist in column_mappings.target_column.
+
+source:
+  host: "127.0.0.1"
+  port: 3306
+  username: "root"
+  password: "your_password"
+  database: "source_db"
+  charset: "utf8mb4"
+
+target:
+  host: "127.0.0.1"
+  port: 3306
+  username: "root"
+  password: "your_password"
+  database: "target_db"
+  charset: "utf8mb4"
+
+options:
+  batch_size: 1000
+  continue_on_error: false
+  checkpoint_table: "edu_db_sync_checkpoint"
+  auto_create_checkpoint_table: true
+
+tables:
+  - name: "order_upsert_demo"
+    source_mode: "table"
+    write_mode: "upsert"
+    source_table: "source_order"
+    target_table: "target_order"
+    cursor_id_column: "id"
+    sync_time_column: "update_time"
+    fallback_sync_time_column: "create_time"
+    target_key_column: "order_id"
+    column_mappings:
+      - source_column: "id"
+        target_column: "order_id"
+        required: true
+      - source_column: "user_id"
+        target_column: "user_id"
+        required: true
+      - source_column: "status"
+        target_column: "status"
+      - source_column: "amount"
+        target_column: "amount"
+      - source_column: "update_time"
+        target_column: "update_time"
+    filters:
+      - column: "status"
+        value: "PAID"
+    delete_rule:
+      operation_type_column: "op_type"
+      delete_operation_value: 2
+      delete_flag_column: "is_deleted"
+      delete_flag_value: 1
