@@ -12,6 +12,9 @@ import com.xy.etl.sync.model.ResolvedTableConfig;
 import com.xy.etl.sync.model.TableSyncResult;
 import com.xy.etl.sync.reader.SourceBatchReader;
 import com.xy.etl.sync.support.DbSyncConstants;
+import com.xy.etl.sync.support.FullRefreshDeleteMode;
+import com.xy.etl.sync.support.SourceMode;
+import com.xy.etl.sync.support.WriteMode;
 import com.xy.etl.sync.writer.TargetJdbcWriter;
 import com.xy.etl.sync.writer.strategy.BatchWriteStrategy;
 import com.xy.etl.sync.writer.strategy.BatchWriteStrategyFactory;
@@ -146,8 +149,8 @@ class TableSyncExecutorTest {
 
     private static ResolvedTableConfig incrementalConfig() {
         return new ResolvedTableConfig(
-                null, null, null, null, "syncKey", DbSyncConstants.SOURCE_MODE_TABLE, DbSyncConstants.WRITE_MODE_UPSERT,
-                DbSyncConstants.FULL_REFRESH_DELETE_MODE_DELETE, "src_table", null, "tgt_table", "id", "update_time", null,
+                null, null, null, null, "syncKey", SourceMode.TABLE, WriteMode.UPSERT,
+                FullRefreshDeleteMode.DELETE, "src_table", null, "tgt_table", "id", "update_time", null,
                 null, "id", List.of(), "id", 100,
                 List.of(), List.of(), new ResolvedDeleteRule(null, null, null, null),
                 DbSyncConstants.DEFAULT_CHECKPOINT_TABLE, true
@@ -156,8 +159,8 @@ class TableSyncExecutorTest {
 
     private static ResolvedTableConfig fullRefreshConfig() {
         return new ResolvedTableConfig(
-                null, null, null, null, "syncKey", DbSyncConstants.SOURCE_MODE_TABLE, DbSyncConstants.WRITE_MODE_FULL_REFRESH_INSERT,
-                DbSyncConstants.FULL_REFRESH_DELETE_MODE_DELETE, "src_table", null, "tgt_table", "id", "update_time", null,
+                null, null, null, null, "syncKey", SourceMode.TABLE, WriteMode.FULL_REFRESH_INSERT,
+                FullRefreshDeleteMode.DELETE, "src_table", null, "tgt_table", "id", "update_time", null,
                 null, "id", List.of(), "id", 100,
                 List.of(), List.of(), new ResolvedDeleteRule(null, null, null, null),
                 DbSyncConstants.DEFAULT_CHECKPOINT_TABLE, true

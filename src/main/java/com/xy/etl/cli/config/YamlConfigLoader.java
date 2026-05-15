@@ -7,7 +7,9 @@ import com.xy.etl.dto.DbSyncFilterDTO;
 import com.xy.etl.dto.DbSyncRequest;
 import com.xy.etl.dto.DbSyncTableConfigDTO;
 import com.xy.etl.dto.DirectDataSourceConfigDTO;
-import com.xy.etl.sync.support.DbSyncConstants;
+import com.xy.etl.sync.support.FullRefreshDeleteMode;
+import com.xy.etl.sync.support.SourceMode;
+import com.xy.etl.sync.support.WriteMode;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -121,7 +123,7 @@ public class YamlConfigLoader {
 
         String sourceMode = table.getSourceMode();
         if (sourceMode == null) {
-            sourceMode = sourceSql != null ? DbSyncConstants.SOURCE_MODE_SQL : DbSyncConstants.SOURCE_MODE_TABLE;
+            sourceMode = sourceSql != null ? SourceMode.SQL.value() : SourceMode.TABLE.value();
         }
 
         String writeMode = table.getWriteMode();
@@ -132,12 +134,12 @@ public class YamlConfigLoader {
         }
         if (writeMode == null) {
             writeMode = hasColumns || Boolean.TRUE.equals(truncateBeforeLoad)
-                    ? DbSyncConstants.WRITE_MODE_FULL_REFRESH_INSERT
-                    : DbSyncConstants.WRITE_MODE_UPSERT;
+                    ? WriteMode.FULL_REFRESH_INSERT.value()
+                    : WriteMode.UPSERT.value();
         }
 
         String fullRefreshDeleteMode = Boolean.TRUE.equals(truncateBeforeLoad)
-                ? DbSyncConstants.FULL_REFRESH_DELETE_MODE_TRUNCATE
+                ? FullRefreshDeleteMode.TRUNCATE.value()
                 : null;
 
         List<DbSyncColumnMappingDTO> columnMappings = new ArrayList<>();

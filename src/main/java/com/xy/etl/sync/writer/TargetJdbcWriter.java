@@ -26,7 +26,7 @@ public class TargetJdbcWriter {
     }
 
     public int clearTargetForFullRefresh(Connection targetConn, ResolvedTableConfig config) {
-        if (DbSyncConstants.FULL_REFRESH_DELETE_MODE_TRUNCATE.equals(config.fullRefreshDeleteMode())) {
+        if (config.truncateBeforeFullRefresh()) {
             log.warn("full refresh uses truncate to clear target table, syncKey: {}, targetTable: {}. Note: MySQL truncate may not rollback inside transactions.",
                     config.syncKey(), config.targetTable());
             String sql = "TRUNCATE TABLE " + config.targetTable();

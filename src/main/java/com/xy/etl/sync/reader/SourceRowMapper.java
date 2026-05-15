@@ -87,7 +87,7 @@ public class SourceRowMapper {
     }
 
     private void validateTargetKeyValues(ResolvedTableConfig config, Map<String, Object> targetValues, Long cursorId) {
-        if (DbSyncConstants.WRITE_MODE_FULL_REFRESH_INSERT.equals(config.writeMode()) && config.targetKeyColumn() == null
+        if (config.fullRefreshWriteMode() && config.targetKeyColumn() == null
                 && (config.targetKeyColumns() == null || config.targetKeyColumns().isEmpty())) {
             return;
         }

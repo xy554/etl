@@ -1,6 +1,9 @@
 package com.xy.etl.sync.model;
 
 import com.xy.etl.dto.DirectDataSourceConfigDTO;
+import com.xy.etl.sync.support.FullRefreshDeleteMode;
+import com.xy.etl.sync.support.SourceMode;
+import com.xy.etl.sync.support.WriteMode;
 
 import java.util.List;
 
@@ -9,9 +12,9 @@ public record ResolvedTableConfig(Long sourceDataSourceId,
                                   Long targetDataSourceId,
                                   DirectDataSourceConfigDTO targetDataSourceConfig,
                                   String syncKey,
-                                  String sourceMode,
-                                  String writeMode,
-                                  String fullRefreshDeleteMode,
+                                  SourceMode sourceMode,
+                                  WriteMode writeMode,
+                                  FullRefreshDeleteMode fullRefreshDeleteMode,
                                   String sourceTable,
                                   String sourceSql,
                                   String targetTable,
@@ -28,4 +31,28 @@ public record ResolvedTableConfig(Long sourceDataSourceId,
                                   ResolvedDeleteRule deleteRule,
                                   String checkpointTable,
                                   boolean autoCreateCheckpointTable) {
+
+    public boolean sqlSourceMode() {
+        return sourceMode.isSql();
+    }
+
+    public boolean fullRefreshWriteMode() {
+        return writeMode.isFullRefreshInsert();
+    }
+
+    public boolean truncateBeforeFullRefresh() {
+        return fullRefreshDeleteMode.isTruncate();
+    }
+
+    public String sourceModeValue() {
+        return sourceMode.value();
+    }
+
+    public String writeModeValue() {
+        return writeMode.value();
+    }
+
+    public String fullRefreshDeleteModeValue() {
+        return fullRefreshDeleteMode.value();
+    }
 }

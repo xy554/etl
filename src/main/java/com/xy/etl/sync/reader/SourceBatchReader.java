@@ -35,7 +35,7 @@ public class SourceBatchReader {
                                                 long lastSyncId) {
         log.debug("prepare fetch source batch, syncKey: {}, sourceMode: {}, checkpoint: {}/{}",
                 config.syncKey(), config.sourceMode(), lastSyncTime, lastSyncId);
-        if (DbSyncConstants.SOURCE_MODE_SQL.equals(config.sourceMode())) {
+        if (config.sqlSourceMode()) {
             return fetchBatchBySql(sourceDataSource, config, lastSyncTime, lastSyncId);
         }
         return fetchBatchByTable(sourceDataSource, config, lastSyncTime, lastSyncId);

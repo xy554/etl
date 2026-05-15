@@ -3,7 +3,7 @@ package com.xy.etl.sync.writer.strategy;
 import com.xy.etl.sync.model.BatchWriteResult;
 import com.xy.etl.sync.model.ResolvedTableConfig;
 import com.xy.etl.sync.reader.SourceRowMapper;
-import com.xy.etl.sync.support.DbSyncConstants;
+import com.xy.etl.sync.support.WriteMode;
 import com.xy.etl.sync.writer.TargetJdbcWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -21,8 +21,8 @@ public class UpsertBatchWriteStrategy extends AbstractBatchWriteStrategy {
     }
 
     @Override
-    public String writeMode() {
-        return DbSyncConstants.WRITE_MODE_UPSERT;
+    public WriteMode writeMode() {
+        return WriteMode.UPSERT;
     }
 
     @Override

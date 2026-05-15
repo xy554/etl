@@ -5,6 +5,9 @@ import com.xy.etl.sync.model.ResolvedDeleteRule;
 import com.xy.etl.sync.model.ResolvedTableConfig;
 import com.xy.etl.sync.model.SourceRow;
 import com.xy.etl.sync.support.DbSyncConstants;
+import com.xy.etl.sync.support.FullRefreshDeleteMode;
+import com.xy.etl.sync.support.SourceMode;
+import com.xy.etl.sync.support.WriteMode;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Timestamp;
@@ -45,8 +48,8 @@ class SourceRowMapperTest {
     @Test
     void shouldTreatDeleteRuleRowAsDeleted() {
         ResolvedTableConfig config = new ResolvedTableConfig(
-                null, null, null, null, "syncKey", DbSyncConstants.SOURCE_MODE_TABLE, DbSyncConstants.WRITE_MODE_UPSERT,
-                DbSyncConstants.FULL_REFRESH_DELETE_MODE_DELETE, "src", null, "tgt", "id", "update_time", null,
+                null, null, null, null, "syncKey", SourceMode.TABLE, WriteMode.UPSERT,
+                FullRefreshDeleteMode.DELETE, "src", null, "tgt", "id", "update_time", null,
                 null, "id", List.of(), "id", 100,
                 List.of(new ResolvedColumnMapping("id", "id", true, null, null, false)),
                 List.of(),
@@ -96,8 +99,8 @@ class SourceRowMapperTest {
 
     private static ResolvedTableConfig config(List<ResolvedColumnMapping> mappings) {
         return new ResolvedTableConfig(
-                null, null, null, null, "syncKey", DbSyncConstants.SOURCE_MODE_TABLE, DbSyncConstants.WRITE_MODE_UPSERT,
-                DbSyncConstants.FULL_REFRESH_DELETE_MODE_DELETE, "src", null, "tgt", "id", "update_time", null,
+                null, null, null, null, "syncKey", SourceMode.TABLE, WriteMode.UPSERT,
+                FullRefreshDeleteMode.DELETE, "src", null, "tgt", "id", "update_time", null,
                 "fallback_time", "id", List.of(), "id", 100,
                 mappings, List.of(), new ResolvedDeleteRule(null, null, null, null),
                 DbSyncConstants.DEFAULT_CHECKPOINT_TABLE, true

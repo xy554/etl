@@ -5,6 +5,7 @@ import com.xy.etl.sync.model.ResolvedTableConfig;
 import com.xy.etl.sync.model.SourceRow;
 import com.xy.etl.sync.reader.SourceRowMapper;
 import com.xy.etl.sync.support.SyncRuntimeSupport;
+import com.xy.etl.sync.support.WriteMode;
 import com.xy.etl.sync.writer.TargetJdbcWriter;
 
 import java.sql.Connection;
@@ -28,7 +29,7 @@ abstract class AbstractBatchWriteStrategy implements BatchWriteStrategy {
     }
 
     @Override
-    public abstract String writeMode();
+    public abstract WriteMode writeMode();
 
     @Override
     public abstract BatchWriteResult write(Connection targetConn, ResolvedTableConfig config, List<Map<String, Object>> rows);

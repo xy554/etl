@@ -4,8 +4,8 @@ import com.xy.etl.sync.model.BatchWriteResult;
 import com.xy.etl.sync.model.ResolvedTableConfig;
 import com.xy.etl.sync.model.SourceRow;
 import com.xy.etl.sync.reader.SourceRowMapper;
-import com.xy.etl.sync.support.DbSyncConstants;
 import com.xy.etl.sync.support.SyncRuntimeSupport;
+import com.xy.etl.sync.support.WriteMode;
 import com.xy.etl.sync.writer.TargetJdbcWriter;
 import org.springframework.stereotype.Component;
 
@@ -22,8 +22,8 @@ public class FullRefreshInsertBatchWriteStrategy extends AbstractBatchWriteStrat
     }
 
     @Override
-    public String writeMode() {
-        return DbSyncConstants.WRITE_MODE_FULL_REFRESH_INSERT;
+    public WriteMode writeMode() {
+        return WriteMode.FULL_REFRESH_INSERT;
     }
 
     @Override

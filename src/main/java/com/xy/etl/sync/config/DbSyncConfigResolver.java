@@ -11,7 +11,10 @@ import com.xy.etl.sync.model.ResolvedDeleteRule;
 import com.xy.etl.sync.model.ResolvedFilter;
 import com.xy.etl.sync.model.ResolvedTableConfig;
 import com.xy.etl.sync.support.DbSyncConstants;
+import com.xy.etl.sync.support.FullRefreshDeleteMode;
+import com.xy.etl.sync.support.SourceMode;
 import com.xy.etl.sync.support.SyncRuntimeSupport;
+import com.xy.etl.sync.support.WriteMode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -59,15 +62,15 @@ public class DbSyncConfigResolver {
             throw new RuntimeException("targetDataSourceId and targetDataSourceConfig cannot both be null");
         }
 
-        String sourceMode = resolveSourceMode(tableConfig.getSourceMode());
-        String sourceTable = DbSyncConstants.SOURCE_MODE_SQL.equals(sourceMode)
+        SourceMode sourceMode = resolveSourceMode(tableConfig.getSourceMode());
+        String sourceTable = sourceMode.isSql()
                 ? buildSqlSourceLabel(tableConfig.getSourceSql())
                 : requireIdentifier(tableConfig.getSourceTable(), "sourceTable");
-        String sourceSql = DbSyncConstants.SOURCE_MODE_SQL.equals(sourceMode)
+        String sourceSql = sourceMode.isSql()
                 ? requireSql(tableConfig.getSourceSql(), "sourceSql")
                 : null;
-        String writeMode = resolveWriteMode(tableConfig.getWriteMode());
-        String fullRefreshDeleteMode = resolveFullRefreshDeleteMode(tableConfig.getFullRefreshDeleteMode());
+        WriteMode writeMode = resolveWriteMode(tableConfig.getWriteMode());
+        FullRefreshDeleteMode fullRefreshDeleteMode = resolveFullRefreshDeleteMode(tableConfig.getFullRefreshDeleteMode());
         String targetTable = requireIdentifier(tableConfig.getTargetTable(), "targetTable");
         String cursorIdColumn = requireIdentifier(tableConfig.getCursorIdColumn(), "cursorIdColumn");
         String syncTimeColumn = requireIdentifier(tableConfig.getSyncTimeColumn(), "syncTimeColumn");
@@ -79,7 +82,7 @@ public class DbSyncConfigResolver {
                 .map(item -> requireIdentifier(item, "targetKeyColumns item"))
                 .collect(Collectors.toList());
         boolean compositeKeyMode = !targetKeyColumns.isEmpty();
-        boolean fullRefreshMode = DbSyncConstants.WRITE_MODE_FULL_REFRESH_INSERT.equals(writeMode);
+        boolean fullRefreshMode = writeMode.isFullRefreshInsert();
         String targetKeyColumn = compositeKeyMode || (fullRefreshMode && SyncRuntimeSupport.isBlank(tableConfig.getTargetKeyColumn()))
                 ? null : requireIdentifier(tableConfig.getTargetKeyColumn(), "targetKeyColumn");
         String targetKeySourceColumn = compositeKeyMode || (fullRefreshMode && SyncRuntimeSupport.isBlank(tableConfig.getTargetKeySourceColumn()))
@@ -87,7 +90,7 @@ public class DbSyncConfigResolver {
         int batchSize = resolveBatchSize(request, tableConfig);
 
         List<ResolvedColumnMapping> columnMappings = resolveColumnMappings(tableConfig.getColumnMappings());
-        if (DbSyncConstants.WRITE_MODE_DELETE_INSERT.equals(writeMode) && !compositeKeyMode) {
+        if (writeMode == WriteMode.DELETE_INSERT && !compositeKeyMode) {
             throw new RuntimeException("targetKeyColumns cannot be empty when writeMode is delete_insert");
         }
         if (compositeKeyMode) {
@@ -104,7 +107,7 @@ public class DbSyncConfigResolver {
             }
         }
         List<ResolvedFilter> filters = resolveFilters(tableConfig.getFilters());
-        if (DbSyncConstants.SOURCE_MODE_SQL.equals(sourceMode) && !filters.isEmpty()) {
+        if (sourceMode.isSql() && !filters.isEmpty()) {
             throw new RuntimeException("filters are not supported when sourceMode is sql");
         }
         ResolvedDeleteRule resolvedDeleteRule = resolveDeleteRule(tableConfig.getDeleteRule());
@@ -117,7 +120,7 @@ public class DbSyncConfigResolver {
                 : tableConfig.getSyncKey().trim();
 
         log.info("single table sync config resolved, syncKey: {}, sourceMode: {}, writeMode: {}, fullRefreshDeleteMode: {}, sourceTable: {}, targetTable: {}, cursorIdColumn: {}, syncTimeColumn: {}, syncTimeExpression: {}, fallbackSyncTimeColumn: {}, batchSize: {}, filterCount: {}, mappingCount: {}, targetKeyColumns: {}, checkpointTable: {}, autoCreateCheckpointTable: {}",
-                syncKey, sourceMode, writeMode, fullRefreshDeleteMode, sourceTable, targetTable, cursorIdColumn, syncTimeColumn, syncTimeExpression, fallbackSyncTimeColumn,
+                syncKey, sourceMode.value(), writeMode.value(), fullRefreshDeleteMode.value(), sourceTable, targetTable, cursorIdColumn, syncTimeColumn, syncTimeExpression, fallbackSyncTimeColumn,
                 batchSize, filters.size(), columnMappings.size(), SyncRuntimeSupport.resolveTargetKeyColumnsForLog(targetKeyColumn, targetKeyColumns),
                 checkpointTable, autoCreateCheckpointTable);
 
@@ -150,7 +153,7 @@ public class DbSyncConfigResolver {
     }
 
     public List<String> buildSelectColumns(ResolvedTableConfig config) {
-        if (DbSyncConstants.SOURCE_MODE_SQL.equals(config.sourceMode())) {
+        if (config.sqlSourceMode()) {
             return Collections.emptyList();
         }
         LinkedHashSet<String> columns = new LinkedHashSet<>();
@@ -265,7 +268,7 @@ public class DbSyncConfigResolver {
                                        DirectDataSourceConfigDTO sourceDataSourceConfig,
                                        Long targetDataSourceId,
                                        DirectDataSourceConfigDTO targetDataSourceConfig,
-                                       String sourceMode,
+                                       SourceMode sourceMode,
                                        String sourceTable,
                                        String targetTable,
                                        Collection<ResolvedFilter> filters) {
@@ -276,43 +279,19 @@ public class DbSyncConfigResolver {
         String filterSignature = joiner.length() == 0 ? "all" : joiner.toString();
         String sourceIdentity = buildDataSourceIdentity(sourceDataSourceId, sourceDataSourceConfig, sourceTable);
         String targetIdentity = buildDataSourceIdentity(targetDataSourceId, targetDataSourceConfig, targetTable);
-        return sourceMode + ":" + sourceIdentity + ":" + sourceTable + "->" + targetIdentity + ":" + targetTable + ":" + filterSignature;
+        return sourceMode.value() + ":" + sourceIdentity + ":" + sourceTable + "->" + targetIdentity + ":" + targetTable + ":" + filterSignature;
     }
 
-    private String resolveSourceMode(String sourceMode) {
-        if (SyncRuntimeSupport.isBlank(sourceMode)) {
-            return DbSyncConstants.SOURCE_MODE_TABLE;
-        }
-        String normalized = sourceMode.trim().toLowerCase();
-        if (!DbSyncConstants.SOURCE_MODE_TABLE.equals(normalized) && !DbSyncConstants.SOURCE_MODE_SQL.equals(normalized)) {
-            throw new RuntimeException("sourceMode must be table or sql");
-        }
-        return normalized;
+    private SourceMode resolveSourceMode(String sourceMode) {
+        return SourceMode.resolve(sourceMode);
     }
 
-    private String resolveWriteMode(String writeMode) {
-        if (SyncRuntimeSupport.isBlank(writeMode)) {
-            return DbSyncConstants.WRITE_MODE_UPSERT;
-        }
-        String normalized = writeMode.trim().toLowerCase();
-        if (!DbSyncConstants.WRITE_MODE_UPSERT.equals(normalized)
-                && !DbSyncConstants.WRITE_MODE_DELETE_INSERT.equals(normalized)
-                && !DbSyncConstants.WRITE_MODE_MULTI_VALUES_UPSERT.equals(normalized)
-                && !DbSyncConstants.WRITE_MODE_FULL_REFRESH_INSERT.equals(normalized)) {
-            throw new RuntimeException("writeMode must be upsert, delete_insert, multi_values_upsert or full_refresh_insert");
-        }
-        return normalized;
+    private WriteMode resolveWriteMode(String writeMode) {
+        return WriteMode.resolve(writeMode);
     }
 
-    private String resolveFullRefreshDeleteMode(String fullRefreshDeleteMode) {
-        if (SyncRuntimeSupport.isBlank(fullRefreshDeleteMode)) {
-            return DbSyncConstants.FULL_REFRESH_DELETE_MODE_DELETE;
-        }
-        String normalized = fullRefreshDeleteMode.trim().toLowerCase();
-        if (!DbSyncConstants.FULL_REFRESH_DELETE_MODE_DELETE.equals(normalized) && !DbSyncConstants.FULL_REFRESH_DELETE_MODE_TRUNCATE.equals(normalized)) {
-            throw new RuntimeException("fullRefreshDeleteMode must be delete or truncate");
-        }
-        return normalized;
+    private FullRefreshDeleteMode resolveFullRefreshDeleteMode(String fullRefreshDeleteMode) {
+        return FullRefreshDeleteMode.resolve(fullRefreshDeleteMode);
     }
 
     private String buildSqlSourceLabel(String sourceSql) {

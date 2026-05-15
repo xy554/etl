@@ -54,7 +54,7 @@ public class TableSyncExecutor {
         checkpointStore.ensureCheckpointTable(targetDataSource, config.checkpointTable(), config.autoCreateCheckpointTable());
 
         Checkpoint checkpoint = checkpointStore.loadCheckpoint(targetDataSource, config.checkpointTable(), config.syncKey());
-        if (DbSyncConstants.WRITE_MODE_FULL_REFRESH_INSERT.equals(config.writeMode())) {
+        if (config.fullRefreshWriteMode()) {
             return syncTableByFullRefreshInsert(config, sourceDataSource, targetDataSource, checkpoint);
         }
         return syncTableIncrementally(config, sourceDataSource, targetDataSource, checkpoint);
@@ -75,7 +75,7 @@ public class TableSyncExecutor {
         log.info("start incremental/batch sync, syncKey: {}, sourceMode: {}, writeMode: {}, sourceTable: {}, targetTable: {}, batchSize: {}, targetKeyColumns: {}, initialCheckpoint: {}/{}",
                 config.syncKey(), config.sourceMode(), config.writeMode(), config.sourceTable(), config.targetTable(), config.batchSize(),
                 SyncRuntimeSupport.resolveTargetKeyColumns(config), currentSyncTime, currentSyncId);
-        if (DbSyncConstants.SOURCE_MODE_SQL.equals(config.sourceMode())) {
+        if (config.sqlSourceMode()) {
             log.warn("current sourceMode=sql may re-execute sourceSql on each batch, syncKey: {}, batchSize: {}. If source fetch is slow, consider materializing SQL results or increasing batch size.",
                     config.syncKey(), config.batchSize());
         }
@@ -122,7 +122,7 @@ public class TableSyncExecutor {
                     targetConn.commit();
                     long commitMillis = SyncRuntimeSupport.elapsedMillis(commitStartMillis);
                     log.info("batch commit finished, syncKey: {}, batchNo: {}, writeMode: {}, processedCount: {}, upsertedCount: {}, deletedCount: {}, checkpointAdvanced: {}/{} -> {}/{}, fetchMillis: {}, mapMillis: {}, deleteMillis: {}, writeMillis: {}, checkpointMillis: {}, commitMillis: {}, batchTotalMillis: {}",
-                            config.syncKey(), batchNo, config.writeMode(), batchProcessed, batchUpserted, batchDeleted,
+                        config.syncKey(), batchNo, config.writeMode(), batchProcessed, batchUpserted, batchDeleted,
                             currentSyncTime, currentSyncId, batchMaxTime, batchMaxId,
                             fetchMillis, batchWriteResult.mapMillis(), batchWriteResult.deleteMillis(), batchWriteResult.writeMillis(),
                             checkpointMillis, commitMillis, SyncRuntimeSupport.elapsedMillis(batchStartMillis));

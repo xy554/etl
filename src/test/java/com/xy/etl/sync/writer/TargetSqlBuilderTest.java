@@ -3,6 +3,9 @@ package com.xy.etl.sync.writer;
 import com.xy.etl.sync.model.ResolvedDeleteRule;
 import com.xy.etl.sync.model.ResolvedTableConfig;
 import com.xy.etl.sync.support.DbSyncConstants;
+import com.xy.etl.sync.support.FullRefreshDeleteMode;
+import com.xy.etl.sync.support.SourceMode;
+import com.xy.etl.sync.support.WriteMode;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -41,8 +44,8 @@ class TargetSqlBuilderTest {
 
     private static ResolvedTableConfig config(String targetKeyColumn, List<String> targetKeyColumns) {
         return new ResolvedTableConfig(
-                null, null, null, null, "syncKey", DbSyncConstants.SOURCE_MODE_TABLE, DbSyncConstants.WRITE_MODE_UPSERT,
-                DbSyncConstants.FULL_REFRESH_DELETE_MODE_DELETE, "src", null, "tgt", "id", "update_time", null,
+                null, null, null, null, "syncKey", SourceMode.TABLE, WriteMode.UPSERT,
+                FullRefreshDeleteMode.DELETE, "src", null, "tgt", "id", "update_time", null,
                 null, targetKeyColumn, targetKeyColumns, targetKeyColumn, 100,
                 List.of(), List.of(), new ResolvedDeleteRule(null, null, null, null),
                 DbSyncConstants.DEFAULT_CHECKPOINT_TABLE, true

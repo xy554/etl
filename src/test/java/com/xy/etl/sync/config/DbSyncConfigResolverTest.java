@@ -7,6 +7,8 @@ import com.xy.etl.dto.DbSyncTableConfigDTO;
 import com.xy.etl.dto.DirectDataSourceConfigDTO;
 import com.xy.etl.sync.model.ResolvedTableConfig;
 import com.xy.etl.sync.support.DbSyncConstants;
+import com.xy.etl.sync.support.SourceMode;
+import com.xy.etl.sync.support.WriteMode;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -31,8 +33,8 @@ class DbSyncConfigResolverTest {
 
         assertEquals(DbSyncConstants.DEFAULT_BATCH_SIZE, config.batchSize());
         assertEquals(DbSyncConstants.DEFAULT_CHECKPOINT_TABLE, config.checkpointTable());
-        assertEquals(DbSyncConstants.SOURCE_MODE_TABLE, config.sourceMode());
-        assertEquals(DbSyncConstants.WRITE_MODE_UPSERT, config.writeMode());
+        assertEquals(SourceMode.TABLE, config.sourceMode());
+        assertEquals(WriteMode.UPSERT, config.writeMode());
         assertTrue(config.syncKey().contains("source_table->"));
     }
 
@@ -78,7 +80,7 @@ class DbSyncConfigResolverTest {
                 .targetKeyColumn("id")
                 .targetKeySourceColumn(base.getTargetKeySourceColumn())
                 .columnMappings(base.getColumnMappings())
-                .writeMode(DbSyncConstants.WRITE_MODE_DELETE_INSERT)
+                .writeMode(WriteMode.DELETE_INSERT.value())
                 .targetKeyColumns(List.of())
                 .build();
 

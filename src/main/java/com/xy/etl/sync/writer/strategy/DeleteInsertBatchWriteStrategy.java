@@ -4,8 +4,8 @@ import com.xy.etl.sync.model.BatchWriteResult;
 import com.xy.etl.sync.model.ResolvedTableConfig;
 import com.xy.etl.sync.model.SourceRow;
 import com.xy.etl.sync.reader.SourceRowMapper;
-import com.xy.etl.sync.support.DbSyncConstants;
 import com.xy.etl.sync.support.SyncRuntimeSupport;
+import com.xy.etl.sync.support.WriteMode;
 import com.xy.etl.sync.writer.TargetJdbcWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -26,8 +26,8 @@ public class DeleteInsertBatchWriteStrategy extends AbstractBatchWriteStrategy {
     }
 
     @Override
-    public String writeMode() {
-        return DbSyncConstants.WRITE_MODE_DELETE_INSERT;
+    public WriteMode writeMode() {
+        return WriteMode.DELETE_INSERT;
     }
 
     @Override
